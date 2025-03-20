@@ -1,198 +1,137 @@
-import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
-import { Timer, Plus, Check, X, Play, Pause } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react'
+import { cn } from './lib/utils'
 
-interface Task {
-  id: string;
-  title: string;
-  status: 'todo' | 'inProgress' | 'done';
-  timeSpent: number;
-  isTimerRunning: boolean;
-}
+type TimerPhase = 'work' | 'break'
 
-function App() {
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    const saved = localStorage.getItem('tasks');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [newTaskTitle, setNewTaskTitle] = useState('');
+export default function App() {
+  const [timeLeft, setTimeLeft] = useState(25 * 60) // 25 minutes in seconds
+  const [isRunning, setIsRunning] = useState(false)
+  const [phase, setPhase] = useState<TimerPhase>('work')
+  const [sessions, setSessions] = useState(0)
+
+  const workTime = 25 * 60
+  const breakTime = 5 * 60
+
+  const resetTimer = useCallback(() => {
+    setTimeLeft(phase === 'work' ? workTime : breakTime)
+    setIsRunning(false)
+  }, [phase])
+
+  const toggleTimer = () => setIsRunning(!isRunning)
+
+  const switchPhase = useCallback(() => {
+    const newPhase = phase === 'work' ? 'break' : 'work'
+    setPhase(newPhase)
+    setTimeLeft(newPhase === 'work' ? workTime : breakTime)
+    setIsRunning(false)
+    if (newPhase === 'work') {
+      setSessions(s => s + 1)
+    }
+  }, [phase])
 
   useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    let interval: number | undefined
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTasks(prevTasks =>
-        prevTasks.map(task =>
-          task.isTimerRunning
-            ? { ...task, timeSpent: task.timeSpent + 1 }
-            : task
-        )
-      );
-    }, 1000);
+    if (isRunning && timeLeft > 0) {
+      interval = window.setInterval(() => {
+        setTimeLeft(time => time - 1)
+      }, 1000)
+    } else if (timeLeft === 0) {
+      new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play()
+      switchPhase()
+    }
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => clearInterval(interval)
+  }, [isRunning, timeLeft, switchPhase])
 
-  const addTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-
-    const newTask: Task = {
-      id: Date.now().toString(),
-      title: newTaskTitle,
-      status: 'todo',
-      timeSpent: 0,
-      isTimerRunning: false,
-    };
-
-    setTasks(prev => [...prev, newTask]);
-    setNewTaskTitle('');
-  };
-
-  const toggleTimer = (taskId: string) => {
-    setTasks(prev =>
-      prev.map(task =>
-        task.id === taskId
-          ? { ...task, isTimerRunning: !task.isTimerRunning }
-          : task
-      )
-    );
-  };
-
-  const moveTask = (taskId: string, newStatus: Task['status']) => {
-    setTasks(prev =>
-      prev.map(task =>
-        task.id === taskId ? { ...task, status: newStatus } : task
-      )
-    );
-  };
-
-  const deleteTask = (taskId: string) => {
-    setTasks(prev => prev.filter(task => task.id !== taskId));
-  };
-
-  const formatTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const remainingSeconds = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes
-      .toString()
-      .padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  const columns: { title: string; status: Task['status'] }[] = [
-    { title: 'To Do', status: 'todo' },
-    { title: 'In Progress', status: 'inProgress' },
-    { title: 'Done', status: 'done' },
-  ];
+  const minutes = Math.floor(timeLeft / 60)
+  const seconds = timeLeft % 60
+  const progress = ((phase === 'work' ? workTime : breakTime) - timeLeft) / (phase === 'work' ? workTime : breakTime) * 100
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
-          Task Board
-        </h1>
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="max-w-md w-full space-y-8">
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-slate-800">Pomodoro Timer</h1>
+          <p className="text-slate-600 mt-2">Focus on what matters</p>
+        </div>
 
-        <form onSubmit={addTask} className="mb-8">
-          <div className="flex gap-4 max-w-md mx-auto">
-            <input
-              type="text"
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              placeholder="Add a new task..."
-              className="flex-1 px-4 py-2 rounded-lg bg-slate-700/50 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 placeholder-slate-400"
+        <div className="relative w-64 h-64 mx-auto">
+          {/* Progress circle */}
+          <svg className="w-full h-full transform -rotate-90">
+            <circle
+              cx="50%"
+              cy="50%"
+              r="48%"
+              className="stroke-slate-200"
+              strokeWidth="8"
+              fill="none"
             />
-            <button
-              type="submit"
-              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:opacity-90 transition-opacity duration-200 flex items-center gap-2"
-            >
-              <Plus size={20} />
-              Add
-            </button>
-          </div>
-        </form>
+            <circle
+              cx="50%"
+              cy="50%"
+              r="48%"
+              className={cn(
+                "stroke-current transition-all duration-300",
+                phase === 'work' ? 'text-rose-500' : 'text-emerald-500'
+              )}
+              strokeWidth="8"
+              fill="none"
+              strokeDasharray={`${progress} 100`}
+              style={{
+                strokeDasharray: '1000',
+                strokeDashoffset: 1000 - (progress * 10),
+              }}
+            />
+          </svg>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {columns.map((column) => (
-            <div
-              key={column.status}
-              className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-4 border border-slate-700"
-            >
-              <h2 className="text-xl font-semibold mb-4 text-center text-slate-200">
-                {column.title}
-              </h2>
-              <div className="space-y-4">
-                {tasks
-                  .filter((task) => task.status === column.status)
-                  .map((task) => (
-                    <div
-                      key={task.id}
-                      className="bg-slate-700/50 backdrop-blur-sm rounded-lg p-4 border border-slate-600 hover:border-purple-500/50 transition-all duration-200 group"
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <h3 className="font-medium text-slate-200 flex-1">
-                          {task.title}
-                        </h3>
-                        <button
-                          onClick={() => deleteTask(task.id)}
-                          className="text-slate-400 hover:text-red-400 transition-colors duration-200"
-                        >
-                          <X size={18} />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-slate-300">
-                          <Timer size={16} />
-                          <span className="font-mono">
-                            {formatTime(task.timeSpent)}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => toggleTimer(task.id)}
-                            className={`p-1.5 rounded-full transition-all duration-200 ${
-                              task.isTimerRunning
-                                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                                : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                            }`}
-                          >
-                            {task.isTimerRunning ? (
-                              <Pause size={16} />
-                            ) : (
-                              <Play size={16} />
-                            )}
-                          </button>
-
-                          {task.status !== 'done' && (
-                            <button
-                              onClick={() =>
-                                moveTask(
-                                  task.id,
-                                  task.status === 'todo'
-                                    ? 'inProgress'
-                                    : 'done'
-                                )
-                              }
-                              className="p-1.5 rounded-full bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all duration-200"
-                            >
-                              <Check size={16} />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+          {/* Timer display */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-5xl font-bold text-slate-800">
+                {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
+              </div>
+              <div className={cn(
+                "text-lg font-medium mt-2",
+                phase === 'work' ? 'text-rose-500' : 'text-emerald-500'
+              )}>
+                {phase === 'work' ? 'Work Time' : 'Break Time'}
               </div>
             </div>
-          ))}
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex justify-center space-x-4">
+          <button
+            onClick={toggleTimer}
+            className={cn(
+              "px-6 py-2 rounded-lg text-white font-medium transition-all",
+              isRunning
+                ? "bg-slate-500 hover:bg-slate-600"
+                : "bg-indigo-500 hover:bg-indigo-600"
+            )}
+          >
+            {isRunning ? 'Pause' : 'Start'}
+          </button>
+          <button
+            onClick={resetTimer}
+            className="px-6 py-2 rounded-lg bg-slate-200 text-slate-700 font-medium hover:bg-slate-300 transition-all"
+          >
+            Reset
+          </button>
+          <button
+            onClick={switchPhase}
+            className="px-6 py-2 rounded-lg bg-slate-200 text-slate-700 font-medium hover:bg-slate-300 transition-all"
+          >
+            Skip
+          </button>
+        </div>
+
+        <div className="text-center text-slate-600">
+          Sessions completed: {sessions}
         </div>
       </div>
     </div>
-  );
+  )
 }
-
-export default App;
