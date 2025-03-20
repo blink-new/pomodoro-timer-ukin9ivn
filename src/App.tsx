@@ -1,60 +1,163 @@
-import { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Timer } from './components/Timer';
-import { Stats } from './components/Stats';
+import { TaskList } from './components/TaskList';
+import { Statistics } from './components/Statistics';
+import { Settings } from './components/Settings';
 import { useTimer } from './hooks/useTimer';
+import { useTheme } from './hooks/useTheme';
+import { useStatistics } from './hooks/useStatistics';
+import { useTasks } from './hooks/useTasks';
+import { useSound } from './hooks/useSound';
+import { TimerPhase, Theme, TimerSettings } from './types';
+import { Bell, Settings as SettingsIcon, List, BarChart2, Music } from 'lucide-react';
 
-function App() {
-  const { phase, timeLeft, isRunning, stats, actions } = useTimer();
+const defaultSettings: TimerSettings = {
+  workDuration: 25,
+  shortBreakDuration: 5,
+  longBreakDuration: 15,
+  autoStartBreaks: true,
+  autoStartPomodoros: false,
+  soundEnabled: true,
+  notificationsEnabled: true,
+  theme: 'light' as Theme
+};
+
+export default function App() {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showTasks, setShowTasks] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [settings, setSettings] = useState<TimerSettings>(defaultSettings);
+
+  const { theme, toggleTheme } = useTheme();
+  const { 
+    time, 
+    phase, 
+    isRunning, 
+    progress, 
+    start, 
+    pause, 
+    reset, 
+    skip 
+  } = useTimer(settings);
+  const { playSound } = useSound(settings.soundEnabled);
+  const { statistics, updateStatistics } = useStatistics();
+  const { tasks, addTask, completeTask, removeTask } = useTasks();
 
   useEffect(() => {
-    // Request notification permission
-    if ('Notification' in window) {
-      Notification.requestPermission();
+    const savedSettings = localStorage.getItem('timerSettings');
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
     }
+  }, []);
 
-    // Set up keyboard shortcuts
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        actions.toggle();
-      } else if (e.code === 'KeyR') {
-        actions.reset();
-      } else if (e.code === 'KeyS') {
-        actions.skipPhase();
-      }
-    };
+  useEffect(() => {
+    localStorage.setItem('timerSettings', JSON.stringify(settings));
+  }, [settings]);
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [actions]);
+  const handlePhaseComplete = () => {
+    playSound('complete');
+    if (settings.notificationsEnabled) {
+      new Notification('Timer Complete!', {
+        body: `${phase === 'work' ? 'Take a break!' : 'Time to focus!'}`
+      });
+    }
+    updateStatistics(phase);
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white transition-colors">
-      <div className="max-w-2xl mx-auto py-8 px-4">
-        <header className="text-center mb-8">
-          <h1 className="text-3xl font-bold">Pomodoro Timer</h1>
-          <p className="text-slate-600 dark:text-slate-400 mt-2">
-            Stay focused and productive
-          </p>
+    <div className={`min-h-screen transition-colors duration-500 ${theme}`}>
+      <div className="container mx-auto px-4 py-8">
+        <header className="flex justify-between items-center mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Pomodoro Timer
+          </h1>
+          <div className="flex gap-4">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowTasks(!showTasks)}
+              className="btn-icon"
+            >
+              <List />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowStats(!showStats)}
+              className="btn-icon"
+            >
+              <BarChart2 />
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowSettings(!showSettings)}
+              className="btn-icon"
+            >
+              <SettingsIcon />
+            </motion.button>
+          </div>
         </header>
 
-        <Timer
-          phase={phase}
-          timeLeft={timeLeft}
-          isRunning={isRunning}
-          onToggle={actions.toggle}
-          onReset={actions.reset}
-          onSkip={actions.skipPhase}
-        />
+        <main className="flex flex-col items-center gap-8">
+          <Timer
+            time={time}
+            phase={phase}
+            isRunning={isRunning}
+            progress={progress}
+            onStart={start}
+            onPause={pause}
+            onReset={reset}
+            onSkip={skip}
+            onComplete={handlePhaseComplete}
+          />
 
-        <Stats stats={stats} />
+          <AnimatePresence>
+            {showTasks && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="w-full max-w-2xl"
+              >
+                <TaskList
+                  tasks={tasks}
+                  onAdd={addTask}
+                  onComplete={completeTask}
+                  onRemove={removeTask}
+                />
+              </motion.div>
+            )}
 
-        <footer className="mt-8 text-center text-sm text-slate-600 dark:text-slate-400">
-          <p>Keyboard shortcuts: Space (Start/Pause), R (Reset), S (Skip)</p>
-        </footer>
+            {showStats && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="w-full max-w-2xl"
+              >
+                <Statistics statistics={statistics} />
+              </motion.div>
+            )}
+
+            {showSettings && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                className="w-full max-w-2xl"
+              >
+                <Settings
+                  settings={settings}
+                  onUpdate={setSettings}
+                  onClose={() => setShowSettings(false)}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </main>
       </div>
     </div>
   );
 }
-
-export default App;

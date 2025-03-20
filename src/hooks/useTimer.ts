@@ -1,90 +1,80 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TimerPhase, TimerPreset, TimerStats } from '../lib/types';
-import { DEFAULT_PRESET, STORAGE_KEYS } from '../lib/constants';
+import { TimerPhase, TimerSettings } from '../types';
 
-export function useTimer() {
+export const useTimer = (settings: TimerSettings) => {
   const [phase, setPhase] = useState<TimerPhase>('work');
-  const [timeLeft, setTimeLeft] = useState(DEFAULT_PRESET.work);
+  const [time, setTime] = useState(settings.workDuration * 60);
   const [isRunning, setIsRunning] = useState(false);
-  const [stats, setStats] = useState<TimerStats>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.STATS);
-    return saved ? JSON.parse(saved) : {
-      completedSessions: 0,
-      totalFocusTime: 0,
-      dailyStreak: 0,
-      lastCompleted: Date.now(),
-    };
-  });
+  const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
 
-  const [preset] = useState<TimerPreset>(DEFAULT_PRESET);
-  const [sessionCount, setSessionCount] = useState(0);
-
-  const reset = useCallback(() => {
-    setTimeLeft(preset[phase]);
-    setIsRunning(false);
-  }, [phase, preset]);
-
-  const toggle = useCallback(() => {
-    setIsRunning(prev => !prev);
-  }, []);
-
-  const skipPhase = useCallback(() => {
-    if (phase === 'work') {
-      setPhase(sessionCount + 1 >= preset.longBreakInterval ? 'longBreak' : 'shortBreak');
-    } else {
-      setPhase('work');
-      if (phase === 'longBreak') {
-        setSessionCount(0);
-      }
+  const getInitialTime = useCallback((phase: TimerPhase) => {
+    switch (phase) {
+      case 'work':
+        return settings.workDuration * 60;
+      case 'shortBreak':
+        return settings.shortBreakDuration * 60;
+      case 'longBreak':
+        return settings.longBreakDuration * 60;
     }
-  }, [phase, sessionCount, preset.longBreakInterval]);
+  }, [settings]);
 
   useEffect(() => {
-    let interval: number;
-    
-    if (isRunning && timeLeft > 0) {
-      interval = window.setInterval(() => {
-        setTimeLeft(prev => prev - 1);
+    let interval: NodeJS.Timeout;
+
+    if (isRunning && time > 0) {
+      interval = setInterval(() => {
+        setTime((prevTime) => prevTime - 1);
       }, 1000);
-    } else if (timeLeft === 0) {
+    } else if (time === 0) {
+      setIsRunning(false);
       if (phase === 'work') {
-        setStats(prev => ({
-          ...prev,
-          completedSessions: prev.completedSessions + 1,
-          totalFocusTime: prev.totalFocusTime + preset.work,
-        }));
-        setSessionCount(prev => prev + 1);
-      }
-      skipPhase();
-      new Audio('/notification.mp3').play().catch(() => {});
-      if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification('Timer Complete!', {
-          body: `${phase === 'work' ? 'Take a break!' : 'Back to work!'}`,
-        });
+        setPomodorosCompleted((prev) => prev + 1);
+        const nextPhase = pomodorosCompleted % 4 === 3 ? 'longBreak' : 'shortBreak';
+        setPhase(nextPhase);
+        setTime(getInitialTime(nextPhase));
+        if (settings.autoStartBreaks) {
+          setIsRunning(true);
+        }
+      } else {
+        setPhase('work');
+        setTime(getInitialTime('work'));
+        if (settings.autoStartPomodoros) {
+          setIsRunning(true);
+        }
       }
     }
 
     return () => clearInterval(interval);
-  }, [isRunning, timeLeft, phase, skipPhase, preset.work]);
+  }, [isRunning, time, phase, settings, pomodorosCompleted, getInitialTime]);
 
-  useEffect(() => {
-    setTimeLeft(preset[phase]);
-  }, [phase, preset]);
+  const start = () => setIsRunning(true);
+  const pause = () => setIsRunning(false);
+  const reset = () => {
+    setIsRunning(false);
+    setTime(getInitialTime(phase));
+  };
+  const skip = () => {
+    setIsRunning(false);
+    if (phase === 'work') {
+      const nextPhase = pomodorosCompleted % 4 === 3 ? 'longBreak' : 'shortBreak';
+      setPhase(nextPhase);
+      setTime(getInitialTime(nextPhase));
+    } else {
+      setPhase('work');
+      setTime(getInitialTime('work'));
+    }
+  };
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.STATS, JSON.stringify(stats));
-  }, [stats]);
+  const progress = 1 - time / getInitialTime(phase);
 
   return {
+    time,
     phase,
-    timeLeft,
     isRunning,
-    stats,
-    sessionCount,
-    actions: {
-      toggle,
-      reset,
-      skipPhase,
-    },
+    progress,
+    start,
+    pause,
+    reset,
+    skip,
   };
-}
+};

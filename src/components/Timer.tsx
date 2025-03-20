@@ -1,101 +1,133 @@
-import { useEffect, useState } from 'react';
-import { cn } from '../lib/utils';
-import { TimerPhase } from '../lib/types';
+import React, { useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Play, Pause, RotateCcw, SkipForward } from 'lucide-react';
+import { TimerPhase } from '../types';
 
 interface TimerProps {
+  time: number;
   phase: TimerPhase;
-  timeLeft: number;
   isRunning: boolean;
-  onToggle: () => void;
+  progress: number;
+  onStart: () => void;
+  onPause: () => void;
   onReset: () => void;
   onSkip: () => void;
+  onComplete: () => void;
 }
 
-export function Timer({ phase, timeLeft, isRunning, onToggle, onReset, onSkip }: TimerProps) {
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  const progress = 1 - (timeLeft / (phase === 'work' ? 25 * 60 : phase === 'shortBreak' ? 5 * 60 : 15 * 60));
-  
-  const [mounted, setMounted] = useState(false);
-  
+export const Timer: React.FC<TimerProps> = ({
+  time,
+  phase,
+  isRunning,
+  progress,
+  onStart,
+  onPause,
+  onReset,
+  onSkip,
+  onComplete,
+}) => {
+  const minutes = Math.floor(time / 60);
+  const seconds = time % 60;
+
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (time === 0) {
+      onComplete();
+    }
+  }, [time, onComplete]);
+
+  const phaseColors = {
+    work: 'from-rose-500 to-purple-500',
+    shortBreak: 'from-green-400 to-cyan-500',
+    longBreak: 'from-blue-400 to-indigo-500',
+  };
 
   return (
-    <div className="relative flex flex-col items-center justify-center p-8">
-      <div className="relative w-64 h-64">
-        {/* Progress Ring */}
-        <svg className="w-full h-full transform -rotate-90">
+    <div className="relative flex flex-col items-center">
+      <motion.div
+        className={`w-72 h-72 rounded-full relative flex items-center justify-center
+          bg-gradient-to-br ${phaseColors[phase]} shadow-lg`}
+        animate={{
+          scale: isRunning ? [1, 1.02, 1] : 1,
+        }}
+        transition={{
+          duration: 2,
+          repeat: isRunning ? Infinity : 0,
+          ease: "easeInOut"
+        }}
+      >
+        <svg className="absolute w-full h-full -rotate-90">
           <circle
-            className="text-slate-200 dark:text-slate-700"
-            strokeWidth="8"
+            cx="144"
+            cy="144"
+            r="140"
             stroke="currentColor"
-            fill="transparent"
-            r="120"
-            cx="128"
-            cy="128"
+            strokeWidth="8"
+            fill="none"
+            className="text-gray-200 opacity-20"
           />
-          <circle
-            className={cn(
-              "transition-all duration-1000 ease-in-out",
-              phase === 'work' ? 'text-rose-500' : 'text-green-500'
-            )}
-            strokeWidth="8"
-            strokeDasharray={2 * Math.PI * 120}
-            strokeDashoffset={2 * Math.PI * 120 * (1 - progress)}
-            strokeLinecap="round"
+          <motion.circle
+            cx="144"
+            cy="144"
+            r="140"
             stroke="currentColor"
-            fill="transparent"
-            r="120"
-            cx="128"
-            cy="128"
+            strokeWidth="8"
+            fill="none"
+            strokeDasharray="879.2"
+            strokeDashoffset={879.2 * (1 - progress)}
+            className="text-white"
+            animate={{ strokeDashoffset: 879.2 * (1 - progress) }}
+            transition={{ duration: 0.5, ease: "linear" }}
           />
         </svg>
-        
-        {/* Timer Display */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <div className="text-6xl font-bold tabular-nums">
-            {minutes.toString().padStart(2, '0')}:{seconds.toString().padStart(2, '0')}
-          </div>
-          <div className="mt-2 text-lg font-medium capitalize">
-            {phase === 'shortBreak' ? 'Short Break' : phase === 'longBreak' ? 'Long Break' : 'Focus Time'}
-          </div>
+
+        <div className="relative z-10 text-center">
+          <motion.div
+            key={`${minutes}:${seconds}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-6xl font-bold text-white mb-2"
+          >
+            {minutes.toString().padStart(2, '0')}:
+            {seconds.toString().padStart(2, '0')}
+          </motion.div>
+          <motion.div
+            className="text-xl text-white opacity-90 capitalize"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            {phase === 'work' ? 'Focus Time' : phase === 'shortBreak' ? 'Short Break' : 'Long Break'}
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-4 mt-8">
-        <button
+      <div className="flex gap-4 mt-8">
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={isRunning ? onPause : onStart}
+          className="btn-primary"
+        >
+          {isRunning ? <Pause /> : <Play />}
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={onReset}
-          className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+          className="btn-secondary"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-        </button>
-        
-        <button
-          onClick={onToggle}
-          className={cn(
-            "px-8 py-3 rounded-full font-medium transition-all transform active:scale-95",
-            isRunning
-              ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white hover:bg-slate-300 dark:hover:bg-slate-600"
-              : "bg-rose-500 text-white hover:bg-rose-600"
-          )}
-        >
-          {isRunning ? 'Pause' : 'Start'}
-        </button>
+          <RotateCcw />
+        </motion.button>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={onSkip}
-          className="p-2 text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors"
+          className="btn-secondary"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-          </svg>
-        </button>
+          <SkipForward />
+        </motion.button>
       </div>
     </div>
   );
-}
+};
