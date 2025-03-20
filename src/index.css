@@ -8,10 +8,9 @@
   }
 }
 
-circle {
-  transition: stroke-dashoffset 1s ease-in-out;
-}
-
-button {
-  @apply transform active:scale-95;
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
