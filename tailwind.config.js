@@ -6,13 +6,20 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-        primary: 'hsl(var(--primary))',
-        secondary: 'hsl(var(--secondary))',
-        accent: 'hsl(var(--accent))',
-        background: 'hsl(var(--background))',
-        surface: 'hsl(var(--surface))',
-        text: 'hsl(var(--text))',
+      animation: {
+        'gradient': 'gradient 8s linear infinite',
+      },
+      keyframes: {
+        gradient: {
+          '0%, 100%': {
+            'background-size': '200% 200%',
+            'background-position': 'left center'
+          },
+          '50%': {
+            'background-size': '200% 200%',
+            'background-position': 'right center'
+          },
+        },
       },
     },
   },

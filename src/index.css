@@ -1,60 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --primary: 238 96% 59%;
-    --secondary: 239 84% 86%;
-    --accent: 157 84% 67%;
-    --background: 220 33% 98%;
-    --surface: 0 0% 100%;
-    --text: 222 47% 11%;
-  }
-
-  .dark {
-    --primary: 239 84% 86%;
-    --secondary: 238 96% 59%;
-    --accent: 157 84% 67%;
-    --background: 222 47% 11%;
-    --surface: 222 47% 11%;
-    --text: 220 33% 98%;
-  }
+:root {
+  --purple-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
 }
 
 body {
-  @apply bg-background text-text antialiased;
-  font-feature-settings: "rlig" 1, "calt" 1;
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.task-card {
-  @apply relative overflow-hidden rounded-xl bg-surface p-6 shadow-lg transition-all duration-300 hover:shadow-xl;
-  background: linear-gradient(135deg, hsl(var(--surface)), hsl(var(--surface) / 0.95));
-  backdrop-filter: blur(10px);
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.task-card::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.1), transparent);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.1);
+  border-radius: 4px;
 }
 
-.task-card:hover::before {
-  opacity: 1;
+::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.5);
+  border-radius: 4px;
 }
 
-.timer-button {
-  @apply rounded-full bg-primary p-3 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.7);
 }
 
-.column {
-  @apply rounded-2xl bg-surface/50 p-4 shadow-lg backdrop-blur-sm;
-  background: linear-gradient(135deg, hsl(var(--surface) / 0.8), hsl(var(--surface) / 0.6));
+/* Smooth transitions */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
 }
 
-.add-task-button {
-  @apply flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95;
+/* Glass effect */
+.glass {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }

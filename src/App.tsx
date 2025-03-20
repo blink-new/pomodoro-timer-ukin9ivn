@@ -1,9 +1,6 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Trash2, Plus, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { Timer, Plus, Check, X, Play, Pause } from 'lucide-react';
 
 interface Task {
   id: string;
@@ -11,79 +8,70 @@ interface Task {
   status: 'todo' | 'inProgress' | 'done';
   timeSpent: number;
   isTimerRunning: boolean;
-  createdAt: string;
 }
 
-interface TaskStore {
-  tasks: Task[];
-  addTask: (title: string) => void;
-  removeTask: (id: string) => void;
-  updateTaskStatus: (id: string, status: Task['status']) => void;
-  toggleTimer: (id: string) => void;
-  updateTimeSpent: (id: string, timeSpent: number) => void;
-}
+function App() {
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = localStorage.getItem('tasks');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [newTaskTitle, setNewTaskTitle] = useState('');
 
-const useTaskStore = create<TaskStore>()(
-  persist(
-    (set) => ({
-      tasks: [],
-      addTask: (title) =>
-        set((state) => ({
-          tasks: [
-            ...state.tasks,
-            {
-              id: Math.random().toString(36).substring(7),
-              title,
-              status: 'todo',
-              timeSpent: 0,
-              isTimerRunning: false,
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        })),
-      removeTask: (id) =>
-        set((state) => ({
-          tasks: state.tasks.filter((task) => task.id !== id),
-        })),
-      updateTaskStatus: (id, status) =>
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id ? { ...task, status } : task
-          ),
-        })),
-      toggleTimer: (id) =>
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id
-              ? { ...task, isTimerRunning: !task.isTimerRunning }
-              : task
-          ),
-        })),
-      updateTimeSpent: (id, timeSpent) =>
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id ? { ...task, timeSpent } : task
-          ),
-        })),
-    }),
-    {
-      name: 'task-store',
-    }
-  )
-);
+  useEffect(() => {
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+  }, [tasks]);
 
-const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
-  const { removeTask, toggleTimer, updateTimeSpent, updateTaskStatus } = useTaskStore();
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTasks(prevTasks =>
+        prevTasks.map(task =>
+          task.isTimerRunning
+            ? { ...task, timeSpent: task.timeSpent + 1 }
+            : task
+        )
+      );
+    }, 1000);
 
-  React.useEffect(() => {
-    let interval: number;
-    if (task.isTimerRunning) {
-      interval = window.setInterval(() => {
-        updateTimeSpent(task.id, task.timeSpent + 1);
-      }, 1000);
-    }
     return () => clearInterval(interval);
-  }, [task.isTimerRunning]);
+  }, []);
+
+  const addTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+
+    const newTask: Task = {
+      id: Date.now().toString(),
+      title: newTaskTitle,
+      status: 'todo',
+      timeSpent: 0,
+      isTimerRunning: false,
+    };
+
+    setTasks(prev => [...prev, newTask]);
+    setNewTaskTitle('');
+  };
+
+  const toggleTimer = (taskId: string) => {
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === taskId
+          ? { ...task, isTimerRunning: !task.isTimerRunning }
+          : task
+      )
+    );
+  };
+
+  const moveTask = (taskId: string, newStatus: Task['status']) => {
+    setTasks(prev =>
+      prev.map(task =>
+        task.id === taskId ? { ...task, status: newStatus } : task
+      )
+    );
+  };
+
+  const deleteTask = (taskId: string) => {
+    setTasks(prev => prev.filter(task => task.id !== taskId));
+  };
 
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -94,122 +82,117 @@ const TaskCard: React.FC<{ task: Task }> = ({ task }) => {
       .padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="task-card"
-    >
-      <h3 className="mb-4 text-lg font-semibold">{task.title}</h3>
-      <div className="mb-4 flex items-center gap-4">
-        <button
-          onClick={() => toggleTimer(task.id)}
-          className="timer-button"
-        >
-          {task.isTimerRunning ? (
-            <Pause className="h-5 w-5" />
-          ) : (
-            <Play className="h-5 w-5" />
-          )}
-        </button>
-        <span className="font-mono text-lg">{formatTime(task.timeSpent)}</span>
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-text/60">
-          {format(new Date(task.createdAt), 'MMM d, yyyy')}
-        </span>
-        <div className="flex gap-2">
-          <button
-            onClick={() => removeTask(task.id)}
-            className="rounded-full p-2 text-red-500 transition-colors hover:bg-red-500/10"
-          >
-            <Trash2 className="h-5 w-5" />
-          </button>
-          {task.status !== 'done' && (
-            <button
-              onClick={() => updateTaskStatus(task.id, 'done')}
-              className="rounded-full p-2 text-green-500 transition-colors hover:bg-green-500/10"
-            >
-              <CheckCircle className="h-5 w-5" />
-            </button>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  );
-};
-
-const Column: React.FC<{
-  title: string;
-  status: Task['status'];
-  tasks: Task[];
-}> = ({ title, status, tasks }) => {
-  return (
-    <div className="column">
-      <h2 className="mb-4 text-xl font-bold">{title}</h2>
-      <div className="space-y-4">
-        <AnimatePresence>
-          {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-};
-
-export default function App() {
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const { tasks, addTask } = useTaskStore();
-
-  const handleAddTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newTaskTitle.trim()) {
-      addTask(newTaskTitle);
-      setNewTaskTitle('');
-    }
-  };
+  const columns: { title: string; status: Task['status'] }[] = [
+    { title: 'To Do', status: 'todo' },
+    { title: 'In Progress', status: 'inProgress' },
+    { title: 'Done', status: 'done' },
+  ];
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Task Board</h1>
-          <form onSubmit={handleAddTask} className="flex gap-2">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-4xl font-bold text-center mb-8 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600">
+          Task Board
+        </h1>
+
+        <form onSubmit={addTask} className="mb-8">
+          <div className="flex gap-4 max-w-md mx-auto">
             <input
               type="text"
               value={newTaskTitle}
               onChange={(e) => setNewTaskTitle(e.target.value)}
-              placeholder="Add new task..."
-              className="rounded-xl bg-surface px-4 py-2 shadow-lg focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Add a new task..."
+              className="flex-1 px-4 py-2 rounded-lg bg-slate-700/50 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 placeholder-slate-400"
             />
-            <button type="submit" className="add-task-button">
-              <Plus className="h-5 w-5" />
-              Add Task
+            <button
+              type="submit"
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:opacity-90 transition-opacity duration-200 flex items-center gap-2"
+            >
+              <Plus size={20} />
+              Add
             </button>
-          </form>
-        </div>
+          </div>
+        </form>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          <Column
-            title="To Do"
-            status="todo"
-            tasks={tasks.filter((task) => task.status === 'todo')}
-          />
-          <Column
-            title="In Progress"
-            status="inProgress"
-            tasks={tasks.filter((task) => task.status === 'inProgress')}
-          />
-          <Column
-            title="Done"
-            status="done"
-            tasks={tasks.filter((task) => task.status === 'done')}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {columns.map((column) => (
+            <div
+              key={column.status}
+              className="bg-slate-800/50 backdrop-blur-lg rounded-xl p-4 border border-slate-700"
+            >
+              <h2 className="text-xl font-semibold mb-4 text-center text-slate-200">
+                {column.title}
+              </h2>
+              <div className="space-y-4">
+                {tasks
+                  .filter((task) => task.status === column.status)
+                  .map((task) => (
+                    <div
+                      key={task.id}
+                      className="bg-slate-700/50 backdrop-blur-sm rounded-lg p-4 border border-slate-600 hover:border-purple-500/50 transition-all duration-200 group"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <h3 className="font-medium text-slate-200 flex-1">
+                          {task.title}
+                        </h3>
+                        <button
+                          onClick={() => deleteTask(task.id)}
+                          className="text-slate-400 hover:text-red-400 transition-colors duration-200"
+                        >
+                          <X size={18} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-300">
+                          <Timer size={16} />
+                          <span className="font-mono">
+                            {formatTime(task.timeSpent)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => toggleTimer(task.id)}
+                            className={`p-1.5 rounded-full transition-all duration-200 ${
+                              task.isTimerRunning
+                                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                                : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                            }`}
+                          >
+                            {task.isTimerRunning ? (
+                              <Pause size={16} />
+                            ) : (
+                              <Play size={16} />
+                            )}
+                          </button>
+
+                          {task.status !== 'done' && (
+                            <button
+                              onClick={() =>
+                                moveTask(
+                                  task.id,
+                                  task.status === 'todo'
+                                    ? 'inProgress'
+                                    : 'done'
+                                )
+                              }
+                              className="p-1.5 rounded-full bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all duration-200"
+                            >
+                              <Check size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
+
+export default App;
